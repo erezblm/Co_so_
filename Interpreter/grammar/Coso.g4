@@ -25,10 +25,58 @@ tokens {
 
 main: object;
 
-value:  SPACE TEXT NEWLINE? 
-    |   NEWLINE INDENT object DEDENT;
+object: ( NEWLINE
+    |   key 
+        (space_or_tab+ value space_or_tab* NEWLINE
+    |   space_or_tab* NEWLINE INDENT object DEDENT
+    |   space_or_tab* NEWLINE (((START_ARRAY_OBJ_ITEM object) | (START_ARRAY_VAL_ITEM value space_or_tab* NEWLINE)) DEDENT)+ ))+;
 
-object: (TEXT value)+;
+
+key:    key ('.' key)+
+    |   '~'? WORD
+    |   signed_integer;
+
+
+value:  
+        value space_or_tab+ operator space_or_tab+ value
+    |   number
+    |   reference
+    |   func
+    |   inline_array
+    |   inline_object
+    |   text
+    ;
+
+text: (WORD | INTEGER | '.' | '#')+;
+
+reference : inner_reference | EXTERNAL_REFERENCE;
+
+inner_reference: ('.' key?)+ ;
+
+func: '(' WORD (space_or_tab+ value (space_or_tab* ',' space_or_tab* value )*)? space_or_tab* ')';
+
+inline_object: '{' space_or_tab* inline_object_pair (space_or_tab* ',' space_or_tab* inline_object_pair)* space_or_tab* '}';
+inline_object_pair: key space_or_tab+ value;
+
+inline_array: '[' space_or_tab* ( value (space_or_tab* ',' space_or_tab* value)* space_or_tab*)? ']';
+
+number: signed_integer
+    |   fraction
+    |   float_number;
+
+float_number: signed_integer '.' INTEGER;
+fraction: signed_integer '/' signed_integer;
+signed_integer: ('-' | '+')? INTEGER;
+operator: '-' | '+' | 'X' |'x' | '/';
+space_or_tab: ' ' | '\t';
+
+COMMENT: '//' ~[\n\r]+ -> skip;
+
+WORD: [a-zA-Z]+;
+INTEGER: [0-9]+;
+
+EXTERNAL_REFERENCE: '<' (~'>')+ '>';
+
 
 NEWLINE: '\r'? '\n' ' '* {
     let spaces = this.text.length - (this.text.indexOf('\n')+1);
@@ -42,8 +90,12 @@ NEWLINE: '\r'? '\n' ' '* {
         }
     }
     this.indentationLevel = currentIndentation;
-
 };
 
-TEXT: [a-zA-Z]+;
-SPACE: ' '+;
+START_ARRAY_OBJ_ITEM: '* ' {
+    this.indentationLevel = this.indentationLevel + 1
+};
+
+START_ARRAY_VAL_ITEM: '- ' {
+    this.indentationLevel = this.indentationLevel + 1
+};
